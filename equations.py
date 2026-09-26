@@ -54,8 +54,24 @@ def flops(image_size: ArrayLike, batch: ArrayLike) -> Union[float, np.ndarray]:
     return _as_result(out)
 
 
+_CUDA_CONTEXT_BYTES = 9_568_496.0
+"""Persistent cuBLAS/cuDNN workspace observed after the first forward pass
+(torch.cuda.memory_allocated() right after model construction+one forward,
+minus weights). Independent of S and B for this network."""
+
+
 def memory(image_size: ArrayLike, batch: ArrayLike) -> Union[float, np.ndarray]:
     """Peak GPU memory of one forward pass (analytical model).
+
+    Peak activation traffic is dominated by MaxPool2d, not by the largest
+    conv layer: PyTorch's ``max_pool2d_with_indices`` keeps an int64 index
+    tensor alongside the float32 output, so the coefficient at the MaxPool
+    step is 3 (input, read once more for the backward-shaped kernel) + 8
+    (conv1 output feeding the pool) + 2 (pool float32 output) + 4 (pool
+    int64 index buffer, 8 bytes/elem = 2x a float32 slot) = 17 slots of
+    4 bytes -> 68 * B * S^2, instead of the naive 44 that only counts the
+    conv activations. A constant cuBLAS/cuDNN workspace
+    (_CUDA_CONTEXT_BYTES) is allocated once and stays resident.
 
     Parameters
     ----------
@@ -71,7 +87,7 @@ def memory(image_size: ArrayLike, batch: ArrayLike) -> Union[float, np.ndarray]:
     """
     s = _as_float64(image_size)
     b = _as_float64(batch)
-    out = _WEIGHTS_BYTES + 44.0 * b * s * s
+    out = _WEIGHTS_BYTES + _CUDA_CONTEXT_BYTES + 68.0 * b * s * s
     return _as_result(out)
 
 

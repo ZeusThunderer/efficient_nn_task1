@@ -77,30 +77,35 @@ def fit_energy(
     measured: np.ndarray,
     theta_l: np.ndarray,
 ) -> np.ndarray:
-    def model(sb: tuple[np.ndarray, np.ndarray], p_idle: float, e_mem: float, e_compute: float) -> np.ndarray:
+    """Fit P_idle and e_compute. e_mem stays 0.
+
+    bytes_moved and FLOPs are both proportional to B*S^2, so e_mem and
+    e_compute are not separately identifiable. energy() still takes e_mem.
+    """
+
+    def model(sb: tuple[np.ndarray, np.ndarray], p_idle: float, e_compute: float) -> np.ndarray:
         s, b = sb
         pred = energy(
             s,
             b,
             {
                 "P_idle": p_idle,
-                "e_mem": e_mem,
+                "e_mem": 0.0,
                 "e_compute": e_compute,
                 "theta_L": theta_l,
             },
         )
         return np.asarray(pred, dtype=np.float64)
 
-    p0 = (40.0, 1e-10, 1e-12)
     popt, _ = curve_fit(
         model,
         (image_size, batch),
         measured,
-        p0=p0,
+        p0=(40.0, 1e-11),
         bounds=(0.0, np.inf),
         maxfev=20000,
     )
-    return np.asarray(popt, dtype=np.float64)
+    return np.array([popt[0], 0.0, popt[1]], dtype=np.float64)
 
 
 def _metrics(measured: np.ndarray, predicted: np.ndarray) -> tuple[float, float]:

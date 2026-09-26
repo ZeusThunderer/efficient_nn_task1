@@ -5,9 +5,9 @@
     "theta_2_s": 0.0005916578559157663
   },
   "energy": {
-    "P_idle_W": 51.40051275687661,
-    "e_mem_J_per_byte": 2.123345187661712e-09,
-    "e_compute_J_per_FLOP": 9.211768416626477e-22,
+    "P_idle_W": 76.7912178485505,
+    "e_mem_J_per_byte": 0.0,
+    "e_compute_J_per_FLOP": 1.6935907363397194e-11,
     "theta_L": {
       "theta_0_Bps": 94485872984.444,
       "theta_1_FLOPs": 3859207048305.916,

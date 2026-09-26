@@ -21,8 +21,8 @@ FIG_DIR = ROOT / "results" / "figures"
 
 BATCHES = (1, 8, 64, 400)
 S_LINE = np.arange(32, 769, 16, dtype=np.float64)
-VRAM_BYTES = 8 * 1024**3
-WEIGHTS_BYTES = 4159872.0
+# Free memory reported by mem_get_info on the 8 GB RTX 2070, not the nameplate size.
+USABLE_VRAM_BYTES = 6.98 * 1024**3
 DPI = 160
 
 
@@ -67,8 +67,10 @@ def _load_theta(path: Path) -> tuple[tuple[float, float, float], dict]:
 
 
 def _s_at_vram(batch: float) -> float:
-    """Image size where memory(S, B) equals 8 GiB."""
-    return float(np.sqrt((VRAM_BYTES - WEIGHTS_BYTES) / (44.0 * batch)))
+    """Image size where memory(S, B) equals usable VRAM (6.98 GiB)."""
+    base = float(memory(0.0, batch))
+    per_pixel = float(memory(1.0, batch)) - base
+    return float(np.sqrt((USABLE_VRAM_BYTES - base) / per_pixel))
 
 
 def _ok_mask(data: dict[str, np.ndarray], batch: int) -> np.ndarray:
@@ -138,7 +140,7 @@ def _mark_oom(ax: plt.Axes, data: dict[str, np.ndarray], predict) -> None:
                 color="black",
                 linestyle="--",
                 linewidth=1,
-                label="memory = 8 GiB" if not labeled_line else None,
+                label="usable VRAM" if not labeled_line else None,
             )
             labeled_line = True
 
@@ -155,7 +157,7 @@ def plot_flops(fig_dir: Path) -> None:
 def plot_memory(data: dict[str, np.ndarray], fig_dir: Path) -> None:
     fig, ax = plt.subplots(figsize=(8, 5.5))
     _plot_curves(ax, memory, data, "memory")
-    ax.axhline(VRAM_BYTES, color="black", linestyle="--", linewidth=1, label="8 GiB")
+    ax.axhline(USABLE_VRAM_BYTES, color="black", linestyle="--", linewidth=1, label="usable VRAM")
     _style_axes(ax, "bytes", "Peak memory vs image size")
     fig.tight_layout()
     fig.savefig(fig_dir / "memory.png", dpi=DPI)
