@@ -16,6 +16,9 @@ from models import SmallCNN
 
 BASE_S = (32, 64, 128, 224, 256, 384, 512)
 BASE_B = (1, 2, 4, 8, 16, 32, 64, 128, 256)
+# Beyond the homework grid, to reach the 8 GB OOM wall. Not calibration points.
+OOM_S = (576, 640)
+OOM_B = (330, 400)
 SEED = 0
 WARMUP = 10
 LATENCY_REPEATS = 30
@@ -30,7 +33,11 @@ def _is_power_of_two(n: int) -> bool:
 
 
 def build_grid(seed: int = SEED) -> tuple[list[int], list[int], list[tuple[int, int, bool]]]:
-    """Full 11 x 12 grid. is_validation is True when S or B is not from the base lists."""
+    """Cartesian grid. is_validation is True when S or B is not from the base lists.
+
+    Homework core is (7+4) x (9+3) = 132. OOM_S and OOM_B add the large
+    points needed to hit the 8 GB limit; those rows are validation, not fit data.
+    """
     rng = np.random.default_rng(seed)
     s_candidates = [s for s in range(32, 513, 16) if s not in BASE_S]
     extra_s = sorted(int(x) for x in rng.choice(s_candidates, size=4, replace=False))
@@ -39,9 +46,11 @@ def build_grid(seed: int = SEED) -> tuple[list[int], list[int], list[tuple[int, 
 
     base_s = set(BASE_S)
     base_b = set(BASE_B)
+    sizes = (*BASE_S, *extra_s, *OOM_S)
+    batches = (*BASE_B, *extra_b, *OOM_B)
     configs: list[tuple[int, int, bool]] = []
-    for s in (*BASE_S, *extra_s):
-        for b in (*BASE_B, *extra_b):
+    for s in sizes:
+        for b in batches:
             is_validation = s not in base_s or b not in base_b
             configs.append((s, b, is_validation))
     configs.sort(key=lambda item: (item[0] * item[0] * item[1], item[0], item[1]))
@@ -199,10 +208,13 @@ def main() -> None:
         raise SystemExit("CUDA is not available")
 
     extra_s, extra_b, configs = build_grid()
-    if len(configs) != 132:
-        raise SystemExit(f"expected 132 configs, got {len(configs)}")
+    expected = (len(BASE_S) + 4 + len(OOM_S)) * (len(BASE_B) + 3 + len(OOM_B))
+    if len(configs) != expected:
+        raise SystemExit(f"expected {expected} configs, got {len(configs)}")
     print(f"extra S (seed={SEED}): {extra_s}", flush=True)
     print(f"extra B (seed={SEED}): {extra_b}", flush=True)
+    print(f"OOM S: {list(OOM_S)}", flush=True)
+    print(f"OOM B: {list(OOM_B)}", flush=True)
     n_val = sum(1 for _, _, is_val in configs if is_val)
     print(f"grid: {len(configs)} configs, validation={n_val}, calibration={len(configs) - n_val}", flush=True)
 

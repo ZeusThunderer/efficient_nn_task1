@@ -80,7 +80,10 @@ def latency(
     batch: ArrayLike,
     theta: Theta,
 ) -> Union[float, np.ndarray]:
-    """Wall-clock time of one forward pass (bottleneck = max of memory vs compute).
+    """Wall-clock time of one forward pass.
+
+    Roofline with a launch floor:
+    L = max(theta_2, bytes_moved / theta_0, FLOPs / theta_1).
 
     Parameters
     ----------
@@ -89,9 +92,10 @@ def latency(
     batch : scalar or ndarray
         Batch size B.
     theta : sequence or mapping
-        Calibrated throughput parameters:
+        Calibrated parameters:
         - theta[0] (or ``theta_0``): effective memory bandwidth, bytes/s
         - theta[1] (or ``theta_1``): effective compute throughput, FLOP/s
+        - theta[2] (or ``theta_2``): launch overhead, seconds
 
     Returns
     -------
@@ -102,9 +106,10 @@ def latency(
     b = _as_float64(batch)
     theta_0 = _theta_value(theta, 0)
     theta_1 = _theta_value(theta, 1)
+    theta_2 = _theta_value(theta, 2)
     mem_max = 196.0 * b * s * s + 6544.0 * b + 4159872.0
     comp_max = 17712.0 * b * s * s + 313344.0 * b
-    out = np.maximum(mem_max / theta_0, comp_max / theta_1)
+    out = np.maximum(theta_2, np.maximum(mem_max / theta_0, comp_max / theta_1))
     return _as_result(out)
 
 
@@ -127,7 +132,8 @@ def energy(
         - ``P_idle``: idle/static power draw during the forward pass, watts (W)
         - ``e_mem``: energy per byte moved, joules per byte (J/byte)
         - ``e_compute``: energy per FLOP, joules per FLOP (J/FLOP)
-        - ``theta_L``: same object as ``theta`` in :func:`latency` (bytes/s and FLOP/s)
+        - ``theta_L``: same object as ``theta`` in :func:`latency`
+          (bytes/s, FLOP/s, and launch overhead in seconds)
 
     Returns
     -------
@@ -156,7 +162,7 @@ if __name__ == "__main__":
     assert f.shape == (3, 3)
     m = memory(s, b)
     assert m.shape == (3, 3)
-    th = (1e12, 1e12)
+    th = (1e12, 1e12, 1e-6)
     lat = latency(s, b, th)
     assert lat.shape == (3, 3)
     te = {
